@@ -669,7 +669,7 @@ class HitomiGalleryApp(ctk.CTk):
 
         # 최초실행시 db가 생성되어 있지않다면 갱신 시작
         if not os.path.exists(DB_PATH):
-            update_database()
+            update_database(self)
 
         # 드롭다운 옵션 초기화
         self.initialize_dropdowns()
