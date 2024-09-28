@@ -733,21 +733,34 @@ class HitomiGalleryApp(ctk.CTk):
         preview_window = ctk.CTkToplevel(self)
         preview_window.title("커버 이미지 선택")
         preview_window.geometry("900x250")
-    
+
+        # DPI 스케일 가져오기
+        dpi_scale = self.dpi_scale  # 이미 클래스에서 정의된 DPI 스케일 사용
+
+        # 창을 화면 중앙에 위치시키는 코드
+        preview_window.update_idletasks()  # 창 크기 업데이트
+        width = preview_window.winfo_width()
+        height = preview_window.winfo_height()
+        screen_width = preview_window.winfo_screenwidth() / dpi_scale
+        screen_height = preview_window.winfo_screenheight() / dpi_scale
+        x = int((screen_width - width) // 2 * dpi_scale)
+        y = int((screen_height - height) // 2 * dpi_scale)
+        preview_window.geometry(f'+{x}+{y}')
+
         preview_frame = ctk.CTkFrame(preview_window)
         preview_frame.pack(expand=True, fill="both", padx=10, pady=10)
-    
+
         image_buttons = []
         selected_image = [None]
-    
+
         # DPI 스케일을 고려한 이미지 크기 계산
         scaled_width = int(100 * self.dpi_scale)
         scaled_height = int(100 * self.dpi_scale)
-    
+
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             image_files = [f for f in zip_ref.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
             preview_images = image_files[:5]  # 처음 5개의 이미지만 선택
-    
+
             for i, image_file in enumerate(preview_images):
                 with zip_ref.open(image_file) as file:
                     img_data = file.read()
@@ -755,28 +768,28 @@ class HitomiGalleryApp(ctk.CTk):
                     img = img.convert('RGB')  # webp 이미지를 RGB로 변환
                     img.thumbnail((scaled_width, scaled_height))  # 썸네일 크기 조정
                     photo = ctk.CTkImage(light_image=img, dark_image=img, size=(scaled_width, scaled_height))
-    
+
                     def select_image(img_file=image_file):
                         selected_image[0] = img_file
                         for btn in image_buttons:
                             btn.configure(border_width=0)
                         image_buttons[i].configure(border_width=2, border_color="blue")
-    
+
                     button = ctk.CTkButton(preview_frame, image=photo, text="", width=scaled_width, height=scaled_height, command=select_image)
                     button.grid(row=0, column=i, padx=5, pady=5)
                     image_buttons.append(button)
-    
+
         def confirm_selection():
             if selected_image[0]:
                 self.update_cover_image(zip_path, selected_image[0], id_hitomi)
                 preview_window.destroy()
-    
+
         confirm_button = ctk.CTkButton(preview_window, text="확인", command=confirm_selection)
         confirm_button.pack(pady=10)
         
         # 창이 완전히 생성된 후 포커스를 설정하고 맨 앞으로 가져오기
         self.after(100, lambda: self.bring_window_to_front(preview_window))
-    
+
         # ESC 키 바인딩 추가
         preview_window.bind('<Escape>', lambda e: preview_window.destroy())
 
@@ -814,6 +827,19 @@ class HitomiGalleryApp(ctk.CTk):
             info_window = CTkToplevel(self)
             info_window.title(f"Image Info - Hitomi ID: {id_hitomi}")
             info_window.geometry("500x500")
+
+            # DPI 스케일 가져오기
+            dpi_scale = self.dpi_scale
+
+            # 창을 화면 중앙에 위치시키는 코드
+            info_window.update_idletasks()  # 창 크기 업데이트
+            width = info_window.winfo_width()
+            height = info_window.winfo_height()
+            screen_width = info_window.winfo_screenwidth() / dpi_scale
+            screen_height = info_window.winfo_screenheight() / dpi_scale
+            x = int((screen_width - width) // 2 * dpi_scale)
+            y = int((screen_height - height) // 2 * dpi_scale)
+            info_window.geometry(f'+{x}+{y}')
     
             info_frame = CTkScrollableFrame(info_window)
             info_frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -840,9 +866,6 @@ class HitomiGalleryApp(ctk.CTk):
             # 업데이트 버튼 추가
             update_button = CTkButton(info_window, text="Update", command=lambda: self.update_image_info(id_hitomi, entries))
             update_button.pack(pady=10)
-    
-            # ESC 키 바인딩 추가
-            info_window.bind('<Escape>', lambda e: info_window.destroy())
     
             # 창이 완전히 생성된 후 포커스를 설정하고 맨 앞으로 가져오기
             self.after(100, lambda: self.bring_window_to_front(info_window))
