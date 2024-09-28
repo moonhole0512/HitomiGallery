@@ -24,7 +24,7 @@ ex ) C:\Program Files\Honeyview\Honeyview.exe
 -delete키를 누르면 해당 작품을 로컬에서 삭제합니다. (쓰레기통으로 이동합니다)  
 -update키를 누르면 작품경로에서 모든 작품을 스캔하여 작업을 진행합니다. (히토미 다운로더랑 같이쓰려면 어쩔수없었음)  
 
-![image](https://github.com/user-attachments/assets/eff69add-364a-4957-8295-ccf20cc1c41f)
+<img width="366" alt="image" src="https://github.com/user-attachments/assets/5f124764-238f-48e2-b983-515f76880a38">
 
 이미지를 선택하고 i 를 누르면 해당 작품의 정보를 확인 및 수정 가능.
 
