@@ -23,3 +23,12 @@ ex ) C:\Program Files\Honeyview\Honeyview.exe
 -이미지를 선택하고 키보드 상단의 숫자키 0~5 를 누르면 해당 작품의 별점을 매길수있습니다. (나중에 찾아보기쉽겠죠?)  
 -delete키를 누르면 해당 작품을 로컬에서 삭제합니다. (쓰레기통으로 이동합니다)  
 -update키를 누르면 작품경로에서 모든 작품을 스캔하여 작업을 진행합니다. (히토미 다운로더랑 같이쓰려면 어쩔수없었음)  
+
+![image](https://github.com/user-attachments/assets/eff69add-364a-4957-8295-ccf20cc1c41f)
+
+이미지를 선택하고 i 를 누르면 해당 작품의 정보를 확인 및 수정 가능.
+
+
+<img width="679" alt="image" src="https://github.com/user-attachments/assets/a65dac01-9b98-4bc3-b0ad-eca301b7d747">
+
+이미지를 선택하고 c 를 누르면 해당 작품의 커버페이지 변경 가능
