@@ -680,7 +680,7 @@ class HitomiGalleryApp(ctk.CTk):
         self.star_image = Image.open(STAR_IMAGE_PATH).resize((20, 20))  # Adjust size as needed
 
         # Bind key press event to the whole application
-        self.bind("<Key>", self.set_rating)
+        #self.bind("<Key>", self.set_rating)
         self.bind("<Key>", self.on_key_press)
         
         # Bind delete key press event to the whole application
@@ -710,6 +710,8 @@ class HitomiGalleryApp(ctk.CTk):
             self.show_image_info(self.selected_image)
         elif event.char == 'c' and self.selected_image is not None and self.focus_get() == self:
             self.change_cover_image(self.selected_image)
+        elif event.char in "012345" and self.selected_image is not None and self.focus_get() == self:
+            self.set_rating(event)
     
     def change_cover_image(self, id_hitomi):
         conn = sqlite3.connect(DB_PATH)
