@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import re
 import time
@@ -9,6 +10,7 @@ import sqlite3
 import customtkinter as ctk
 from CTkMessagebox import CTkMessagebox
 from customtkinter import ThemeManager
+from customtkinter import CTkToplevel, CTkScrollableFrame, CTkLabel, CTkEntry, CTkTextbox, CTkButton
 import subprocess
 import threading
 import tkinter as tk
@@ -679,6 +681,7 @@ class HitomiGalleryApp(ctk.CTk):
 
         # Bind key press event to the whole application
         self.bind("<Key>", self.set_rating)
+        self.bind("<Key>", self.on_key_press)
         
         # Bind delete key press event to the whole application
         self.bind("<Delete>", self.confirm_delete)
@@ -699,7 +702,176 @@ class HitomiGalleryApp(ctk.CTk):
         self.dpi_scale = get_dpi_scale()
         self.scaled_width = int(JPG_WIDTH * self.dpi_scale)
         self.scaled_height = int(JPG_HEIGHT * self.dpi_scale)
+        
+        self.selected_button = None  # 선택된 버튼을 추적하기 위한 변수 추가
 
+    def on_key_press(self, event):
+        if event.char == 'i' and self.selected_image is not None and self.focus_get() == self:
+            self.show_image_info(self.selected_image)
+        elif event.char == 'c' and self.selected_image is not None and self.focus_get() == self:
+            self.change_cover_image(self.selected_image)
+    
+    def change_cover_image(self, id_hitomi):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('SELECT path, filename FROM files WHERE id_hitomi = ?', (id_hitomi,))
+        result = c.fetchone()
+        conn.close()
+
+        if result:
+            path, filename = result
+            full_path = os.path.join(path, filename)
+            if os.path.exists(full_path):
+                self.show_cover_selection(full_path, id_hitomi)
+            else:
+                print(f"파일을 찾을 수 없습니다: {full_path}")
+        else:
+            print(f"id_hitomi에 해당하는 파일을 찾을 수 없습니다: {id_hitomi}")
+
+
+    def show_cover_selection(self, zip_path, id_hitomi):
+        preview_window = ctk.CTkToplevel(self)
+        preview_window.title("커버 이미지 선택")
+        preview_window.geometry("600x400")
+
+        preview_frame = ctk.CTkFrame(preview_window)
+        preview_frame.pack(expand=True, fill="both", padx=10, pady=10)
+
+        image_buttons = []
+        selected_image = [None]
+
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            image_files = [f for f in zip_ref.namelist() if f.lower().endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
+            preview_images = image_files[:5]  # 처음 5개의 이미지만 선택
+
+            for i, image_file in enumerate(preview_images):
+                with zip_ref.open(image_file) as file:
+                    img_data = file.read()
+                    img = Image.open(io.BytesIO(img_data))
+                    img = img.convert('RGB')  # webp 이미지를 RGB로 변환
+                    img.thumbnail((100, 100))  # 썸네일 크기 조정
+                    photo = ctk.CTkImage(light_image=img, dark_image=img, size=(100, 100))
+
+                    def select_image(img_file=image_file):
+                        selected_image[0] = img_file
+                        for btn in image_buttons:
+                            btn.configure(border_width=0)
+                        image_buttons[i].configure(border_width=2, border_color="blue")
+
+                    button = ctk.CTkButton(preview_frame, image=photo, text="", width=100, height=100, command=select_image)
+                    button.grid(row=0, column=i, padx=5, pady=5)
+                    image_buttons.append(button)
+
+        def confirm_selection():
+            if selected_image[0]:
+                self.update_cover_image(zip_path, selected_image[0], id_hitomi)
+                preview_window.destroy()
+
+        confirm_button = ctk.CTkButton(preview_window, text="확인", command=confirm_selection)
+        confirm_button.pack(pady=10)
+
+    def update_cover_image(self, zip_path, selected_image, id_hitomi):
+        cover_path = os.path.join(COVER_DIR, f"{id_hitomi}.jpg")
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            with zip_ref.open(selected_image) as file:
+                img_data = file.read()
+                img = Image.open(io.BytesIO(img_data))
+                img = img.convert('RGB')
+                img.thumbnail((JPG_WIDTH, JPG_HEIGHT))
+                img.save(cover_path, 'JPEG', quality=JPG_QUALITY)
+
+        print(f"커버 이미지가 업데이트되었습니다: {cover_path}")
+        self.search(maintain_page=True)  # 현재 페이지 유지하며 검색 결과 새로고침
+
+
+    def show_image_info(self, id_hitomi):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute('''SELECT id_hitomi, filename, path, title, artist, tags, groups_, series, characters, rate 
+                    FROM files WHERE id_hitomi = ?''', (id_hitomi,))
+        result = c.fetchone()
+        conn.close()
+    
+        if result:
+            info_window = CTkToplevel(self)
+            info_window.title(f"Image Info - Hitomi ID: {id_hitomi}")
+            info_window.geometry("500x500")
+    
+            info_frame = CTkScrollableFrame(info_window)
+            info_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    
+            labels = ["ID Hitomi", "Filename", "Path", "Title", "Artist", "Tags", "Groups", "Series", "Characters", "Rate"]
+            entries = {}
+    
+            for i, (label, value) in enumerate(zip(labels, result)):
+                CTkLabel(info_frame, text=f"{label}:", anchor="w", font=("Arial", 12, "bold")).grid(row=i, column=0, sticky="w", pady=2)
+                if label in ["Artist", "Tags", "Groups", "Series", "Characters"]:
+                    if label in ["Tags", "Characters"]:
+                        entry = CTkTextbox(info_frame, height=60, wrap="word")
+                        entry.insert("1.0", value)
+                    else:
+                        entry = CTkEntry(info_frame, width=300)
+                        entry.insert(0, value)
+                    entry.grid(row=i, column=1, sticky="ew", pady=2)
+                    entries[label.lower()] = entry
+                else:
+                    CTkLabel(info_frame, text=str(value), anchor="w", wraplength=300).grid(row=i, column=1, sticky="w", pady=2)
+    
+            info_frame.grid_columnconfigure(1, weight=1)
+    
+            # 업데이트 버튼 추가
+            update_button = CTkButton(info_window, text="Update", command=lambda: self.update_image_info(id_hitomi, entries))
+            update_button.pack(pady=10)
+    
+            # ESC 키 바인딩 추가
+            info_window.bind('<Escape>', lambda e: info_window.destroy())
+    
+            # 창이 완전히 생성된 후 포커스를 설정하고 맨 앞으로 가져오기
+            self.after(100, lambda: self.bring_window_to_front(info_window))
+    
+            # 창이 닫힐 때 원래 창으로 포커스 돌려주기
+            def on_closing():
+                self.focus_force()
+                self.selected_image = None
+                self.selected_button = None
+                info_window.destroy()
+    
+            info_window.protocol("WM_DELETE_WINDOW", on_closing)
+    
+            # ESC 키 바인딩 추가
+            info_window.bind('<Escape>', lambda e: on_closing())
+            # 'C' 키 바인딩 추가
+            self.bind("<Key>", self.on_key_press)
+
+
+    def update_image_info(self, id_hitomi, entries):
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        
+        update_query = '''UPDATE files SET 
+                          artist = ?, tags = ?, groups_ = ?, series = ?, characters = ?
+                          WHERE id_hitomi = ?'''
+        
+        artist = entries['artist'].get()
+        tags = entries['tags'].get("1.0", "end-1c")  # CTkTextbox에서 텍스트 가져오기
+        groups = entries['groups'].get()
+        series = entries['series'].get()
+        characters = entries['characters'].get("1.0", "end-1c")  # CTkTextbox에서 텍스트 가져오기
+        
+        c.execute(update_query, (artist, tags, groups, series, characters, id_hitomi))
+        conn.commit()
+        conn.close()
+        
+        print(f"Updated info for image {id_hitomi}")
+        self.search(maintain_page=True)  # 현재 페이지 유지하며 검색 결과 새로고침
+
+    def bring_window_to_front(self, window):
+        window.lift()
+        window.focus_force()
+        window.grab_set()
+        window.grab_release()
+    
     def initial_layout(self):
         self.current_columns = self.calculate_columns()
         self.display_results()
@@ -984,7 +1156,7 @@ class HitomiGalleryApp(ctk.CTk):
                 button.image = photo  # 참조 유지
                 button.grid(row=i // self.current_columns, column=i % self.current_columns, padx=5, pady=5)
                 button.bind("<Double-Button-1>", lambda e, id=id_hitomi: self.open_in_honeyview(id))
-                button.bind("<Button-1>", lambda e, id=id_hitomi: self.select_image(id))
+                button.bind("<Button-1>", lambda e, id=id_hitomi, btn=button: self.select_image(id, btn))
                 
                 self.image_buttons.append(button)
 
@@ -998,19 +1170,20 @@ class HitomiGalleryApp(ctk.CTk):
             img_with_stars.paste(self.star_image, star_position, self.star_image)
         return img_with_stars
 
-    def select_image(self, id_hitomi):
+    def select_image(self, id_hitomi, button):
+        if self.selected_button and self.selected_button.winfo_exists():
+            self.selected_button.configure(border_width=0)  # 이전 선택 제거
         self.selected_image = id_hitomi
-        #print(f"Selected image: {id_hitomi}")  # Debug message
-        
-        # Remove focus from all entry widgets
-        self.title_entry.unbind('<FocusIn>')
-        self.series_dropdown._entry.unbind('<FocusIn>')
-        self.artist_dropdown._entry.unbind('<FocusIn>')
-        self.groups_dropdown._entry.unbind('<FocusIn>')
-        self.tags_entry.unbind('<FocusIn>')
-        self.current_page_entry.unbind('<FocusIn>')
-        
-        # Set focus to the main window
+        self.selected_button = button
+        if button.winfo_exists():
+            button.configure(border_width=2, border_color="blue")  # 선택된 이미지에 테두리 추가
+    
+        # 모든 입력 위젯에서 포커스 제거
+        for widget in [self.title_entry, self.series_dropdown._entry, self.artist_dropdown._entry, 
+                    self.groups_dropdown._entry, self.tags_entry, self.current_page_entry]:
+            widget.unbind('<FocusIn>')
+    
+        # 메인 윈도우에 포커스 설정
         self.focus_set()
 
     def set_rating(self, event):
