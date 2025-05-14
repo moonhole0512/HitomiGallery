@@ -103,20 +103,29 @@ def insert_query(obj, file):
 
 def sql_insert(data):
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''INSERT INTO files(id_hitomi, filename, path, title, artist, 
-                 tags, groups_, series, characters, language) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
-    conn.commit()
-    conn.close()
+    try:
+        c = conn.cursor()
+        c.execute('''INSERT INTO files(id_hitomi, filename, path, title, artist, 
+                     tags, groups_, series, characters, language) 
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', data)
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Database error during insert: {e}")
+    finally:
+        conn.close()
 
 def sql_select_count(file):
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute('''SELECT COUNT(*) FROM files WHERE path = ? AND filename = ?''', 
-              (os.path.dirname(file), os.path.basename(file)))
-    count = c.fetchone()[0]
-    conn.close()
+    try:
+        c = conn.cursor()
+        c.execute('''SELECT COUNT(*) FROM files WHERE path = ? AND filename = ?''', 
+                  (os.path.dirname(file), os.path.basename(file)))
+        count = c.fetchone()[0]
+    except sqlite3.Error as e:
+        print(f"Database error during select count: {e}")
+        count = 0
+    finally:
+        conn.close()
     return count
 
 def unzip_img(dir, file):
@@ -170,14 +179,20 @@ def update_database(self):
         print(f"{i} / {total_files}")
         
         gal_num = get_substring_by_string(os.path.basename(full_path))
+        if gal_num == "0":
+            print(f"Skipping registration for {full_path} as gal_num extraction failed.")
+            continue
         
         try:
             if sql_select_count(full_path) == 0:
                 if gal_num != "0":
-                    obj = json_parser(f"https://ltn.hitomi.la/galleries/{gal_num}.js")
+                    obj = json_parser(f"https://ltn.gold-usergeneratedcontent.net/galleries/{gal_num}.js")
                 else:
                     obj = {}
                 
+                if not obj:
+                    obj['title'] = os.path.basename(full_path)
+
                 data = insert_query(obj, full_path)
                 sql_insert(data)
                 time.sleep(0.2)
@@ -192,10 +207,15 @@ def update_database(self):
             else:
                 error_files.append(str(e) + " : " + full_path + "___(" + gal_num)
             continue
-        except Exception as e:
-            print(f"[DB]<error> DB 처리 중 오류 발생 : {full_path}")
-            print(f"  오류 내용: {e}")
-            continue
+        except sqlite3.OperationalError as e:
+            if 'database is locked' in str(e):
+                print("Database is locked, retrying...")
+                time.sleep(1)
+                continue
+            else:
+                print(f"[DB]<error> DB 처리 중 오류 발생 : {full_path}")
+                print(f"  오류 내용: {e}")
+                continue
         
         try:
             cover_path = os.path.join(COVER_DIR, f"{gal_num}.jpg")
@@ -597,6 +617,9 @@ class HitomiGalleryApp(ctk.CTk):
 
         self.update_button = ctk.CTkButton(self.second_row, text="Update", width=70,command=self.update)
         self.update_button.pack(side="left", padx=5)
+
+        self.dbclean_button = ctk.CTkButton(self.second_row, text="DBclean", width=70, command=self.dbclean)
+        self.dbclean_button.pack(side="left", padx=5)
 
         # 세 번째 줄: Previous, Next, Page Size
         self.third_row = ctk.CTkFrame(self.search_frame)
@@ -1127,8 +1150,8 @@ class HitomiGalleryApp(ctk.CTk):
         params = []
     
         if title:
-            query += ' AND title LIKE ?'
-            params.append(f'%{title}%')
+            query += ' AND (title LIKE ? OR filename LIKE ?)'
+            params.extend([f'%{title}%', f'%{title}%'])
         if artist:
             query += ' AND artist LIKE ?'
             params.append(f'%{artist}%')
@@ -1286,6 +1309,21 @@ class HitomiGalleryApp(ctk.CTk):
                 print(f"File not found: {full_path}")
         else:
             print(f"No file found for id_hitomi: {id_hitomi}")
+
+    def dbclean(self):
+        # Connect to the database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        # Delete entries where the title is empty
+        cursor.execute("DELETE FROM files WHERE title = ''")
+        
+        # Commit changes and close the connection
+        conn.commit()
+        conn.close()
+
+        # Provide feedback to the user
+        print("Entries with empty titles have been deleted.")
 
     def update(self):
         # Disable the update button
